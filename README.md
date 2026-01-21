@@ -67,6 +67,34 @@ A PowerPoint Web Add-in that generates professional slide decks from text using 
    - Go to Insert > Add-ins > Upload My Add-in
    - Select `manifest.xml`
 
+## GitHub Pages Deployment
+
+The add-in is automatically deployed to GitHub Pages when changes are pushed to the main branch.
+
+### Accessing the Deployed Add-in
+
+Once deployed, you can use the production add-in:
+
+1. Download the production manifest:
+   ```
+   https://jw29435.github.io/SlideArchitect/manifest.xml
+   ```
+
+2. Sideload in PowerPoint:
+   - Open PowerPoint Online or Desktop
+   - Go to Insert > Add-ins > Upload My Add-in
+   - Upload the downloaded `manifest.xml`
+
+The deployed version is available at: https://jw29435.github.io/SlideArchitect/
+
+### Manual Deployment
+
+To manually trigger a deployment:
+
+1. Go to the Actions tab in GitHub
+2. Select the "Deploy to GitHub Pages" workflow
+3. Click "Run workflow"
+
 ## Development
 
 ### Project Structure
