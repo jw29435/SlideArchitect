@@ -20,7 +20,7 @@ module.exports = {
     https: true,
     hot: true,
     headers: {
-      "Access-Control-Allow-Origin": "*"
+      "Access-Control-Allow-Origin": "https://localhost:3000"
     }
   },
   module: {

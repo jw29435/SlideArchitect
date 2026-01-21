@@ -2,6 +2,8 @@
  * Overflow Handler - Enforce deterministic layout and overflow rules
  */
 
+import { PLACEHOLDER_MAPPINGS, VALID_LAYOUTS } from './constants.js';
+
 // Maximum character limits per layout type
 const CHARACTER_LIMITS = {
   'title': {
@@ -91,12 +93,12 @@ export async function enforceOverflowRules(slidePlan) {
           slideSpec.placeholders[placeholderKey] = truncated;
           
           // Update the shape text
-          await updateShapeText(shapes, placeholderKey, truncated, slideSpec.layoutType);
+          await updateShapeText(shapes, placeholderKey, truncated, slideSpec.layoutType, context);
         }
       }
       
       // Enforce font sizes
-      await enforceFontSizes(shapes, slideSpec.layoutType);
+      await enforceFontSizes(shapes, slideSpec.layoutType, context);
     }
     
     await context.sync();
@@ -112,32 +114,18 @@ export async function enforceOverflowRules(slidePlan) {
 /**
  * Update shape text by placeholder key
  */
-async function updateShapeText(shapes, placeholderKey, text, layoutType) {
-  const mappings = {
-    'title': {
-      'title': ['Title', 'title', 'TITLE'],
-      'subtitle': ['Subtitle', 'subtitle', 'SUBTITLE']
-    },
-    'content': {
-      'title': ['Title', 'title', 'TITLE'],
-      'content': ['Content', 'content', 'CONTENT', 'Body']
-    },
-    'two-column': {
-      'title': ['Title', 'title', 'TITLE'],
-      'leftColumn': ['Left Column', 'LeftColumn', 'Column 1'],
-      'rightColumn': ['Right Column', 'RightColumn', 'Column 2']
-    },
-    'section': {
-      'title': ['Title', 'title', 'TITLE', 'Section Title']
-    }
-  };
+async function updateShapeText(shapes, placeholderKey, text, layoutType, context) {
+  const mappings = PLACEHOLDER_MAPPINGS;
   
   const possibleNames = (mappings[layoutType] || {})[placeholderKey] || [placeholderKey];
   
-  for (const shape of shapes.items) {
+  // Load all shape properties at once
+  shapes.items.forEach(shape => {
     shape.load(['name', 'textFrame']);
-    await shape.context.sync();
-    
+  });
+  await context.sync();
+  
+  for (const shape of shapes.items) {
     const shapeName = shape.name || '';
     const isMatch = possibleNames.some(name => 
       shapeName.toLowerCase().includes(name.toLowerCase())
@@ -147,10 +135,10 @@ async function updateShapeText(shapes, placeholderKey, text, layoutType) {
       try {
         const textFrame = shape.textFrame;
         textFrame.load('textRange');
-        await shape.context.sync();
+        await context.sync();
         
         textFrame.textRange.text = text;
-        await shape.context.sync();
+        await context.sync();
         break;
       } catch (error) {
         console.warn(`Could not update shape ${shapeName}:`, error);
@@ -162,25 +150,28 @@ async function updateShapeText(shapes, placeholderKey, text, layoutType) {
 /**
  * Enforce font size limits
  */
-async function enforceFontSizes(shapes, layoutType) {
+async function enforceFontSizes(shapes, layoutType, context) {
   const fontLimits = FONT_SIZE_LIMITS[layoutType] || {};
   
-  for (const shape of shapes.items) {
+  // Load all shape properties at once for better performance
+  shapes.items.forEach(shape => {
     shape.load(['name', 'textFrame']);
-    await shape.context.sync();
-    
+  });
+  await context.sync();
+  
+  for (const shape of shapes.items) {
     try {
       const textFrame = shape.textFrame;
       textFrame.load('textRange');
-      await shape.context.sync();
+      await context.sync();
       
       const textRange = textFrame.textRange;
       textRange.load('font');
-      await shape.context.sync();
+      await context.sync();
       
       const font = textRange.font;
       font.load('size');
-      await shape.context.sync();
+      await context.sync();
       
       // Determine which placeholder this shape represents
       let placeholderType = null;
@@ -210,7 +201,7 @@ async function enforceFontSizes(shapes, layoutType) {
           console.log(`Decreased font size for ${shape.name} to ${max}pt`);
         }
         
-        await shape.context.sync();
+        await context.sync();
       }
     } catch (error) {
       console.warn(`Could not enforce font size for shape:`, error);
@@ -231,12 +222,10 @@ export function validateSlidePlan(slidePlan) {
     return errors;
   }
   
-  const validLayouts = ['title', 'content', 'two-column', 'section'];
-  
   slidePlan.slides.forEach((slide, index) => {
     if (!slide.layoutType) {
       errors.push(`Slide ${index + 1}: Missing layoutType`);
-    } else if (!validLayouts.includes(slide.layoutType)) {
+    } else if (!VALID_LAYOUTS.includes(slide.layoutType)) {
       errors.push(`Slide ${index + 1}: Invalid layoutType '${slide.layoutType}'`);
     }
     
