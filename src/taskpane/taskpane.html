@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SlideArchitect</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>SlideArchitect</h1>
+      <p class="subtitle">Generate PowerPoint slides from text using AI</p>
+    </header>
+    
+    <main>
+      <section class="input-section">
+        <label for="textInput">Enter your text content:</label>
+        <textarea id="textInput" placeholder="Enter the content you want to convert into slides...&#10;&#10;Example:&#10;Title: Introduction to AI&#10;Content: Artificial Intelligence is transforming..."></textarea>
+      </section>
+      
+      <section class="config-section">
+        <h3>Configuration</h3>
+        <div class="form-group">
+          <label for="apiKey">OpenAI API Key (optional):</label>
+          <input type="password" id="apiKey" placeholder="sk-...">
+          <small>If not provided, will use mock LLM generation</small>
+        </div>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="enforceOverflow" checked>
+          <label for="enforceOverflow">Enforce overflow rules</label>
+        </div>
+      </section>
+      
+      <section class="actions">
+        <button id="generateBtn" class="primary-btn">Generate Slides</button>
+        <button id="clearBtn" class="secondary-btn">Clear</button>
+      </section>
+      
+      <section class="status-section">
+        <div id="status" class="status"></div>
+        <div id="progress" class="progress"></div>
+      </section>
+      
+      <section class="preview-section">
+        <h3>Slide Plan Preview</h3>
+        <pre id="slidePlanPreview" class="preview-box"></pre>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

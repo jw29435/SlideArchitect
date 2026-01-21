@@ -1,0 +1,2 @@
+# Placeholder for 64x64 icon
+# In production, replace with actual PNG icon
