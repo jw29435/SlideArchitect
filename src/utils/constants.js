@@ -3,6 +3,8 @@
  */
 
 // Mapping of layout types to slide library files
+// NOTE: These paths point to placeholder files. The base64 slide loading
+// feature is not yet implemented. Current implementation uses built-in PowerPoint layouts.
 export const LAYOUT_LIBRARY = {
   'title': 'slide-library/title-slide.txt',
   'content': 'slide-library/content-slide.txt',

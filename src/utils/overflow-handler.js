@@ -73,8 +73,49 @@ export async function enforceOverflowRules(slidePlan) {
       
       await context.sync();
       
-      // Check character limits
+      // Load all shape properties at once
+      shapes.items.forEach(shape => {
+        shape.load(['name', 'textFrame']);
+      });
+      
+      await context.sync();
+      
+      // Load all textRanges and fonts upfront
+      shapes.items.forEach(shape => {
+        try {
+          shape.textFrame.load('textRange');
+        } catch (error) {
+          // Shape might not have a text frame
+        }
+      });
+      
+      await context.sync();
+      
+      // Load font properties
+      shapes.items.forEach(shape => {
+        try {
+          shape.textFrame.textRange.load('font');
+        } catch (error) {
+          // Shape might not have a text range
+        }
+      });
+      
+      await context.sync();
+      
+      // Load font sizes
+      shapes.items.forEach(shape => {
+        try {
+          shape.textFrame.textRange.font.load('size');
+        } catch (error) {
+          // Shape might not have a font
+        }
+      });
+      
+      await context.sync();
+      
+      // Check character limits and update text
       const limits = CHARACTER_LIMITS[slideSpec.layoutType] || {};
+      const mappings = PLACEHOLDER_MAPPINGS[slideSpec.layoutType] || {};
       
       for (const [placeholderKey, content] of Object.entries(slideSpec.placeholders)) {
         const limit = limits[placeholderKey];
@@ -92,16 +133,67 @@ export async function enforceOverflowRules(slidePlan) {
           const truncated = content.substring(0, limit - 3) + '...';
           slideSpec.placeholders[placeholderKey] = truncated;
           
-          // Update the shape text
-          await updateShapeText(shapes, placeholderKey, truncated, slideSpec.layoutType, context);
+          // Find and update the shape (no sync yet)
+          const possibleNames = mappings[placeholderKey] || [placeholderKey];
+          for (const shape of shapes.items) {
+            const shapeName = shape.name || '';
+            const isMatch = possibleNames.some(name => 
+              shapeName.toLowerCase().includes(name.toLowerCase())
+            );
+            
+            if (isMatch) {
+              try {
+                shape.textFrame.textRange.text = truncated;
+                break;
+              } catch (error) {
+                console.warn(`Could not update shape ${shapeName}:`, error);
+              }
+            }
+          }
         }
       }
       
-      // Enforce font sizes
-      await enforceFontSizes(shapes, slideSpec.layoutType, context);
+      // Enforce font sizes (no sync yet)
+      const fontLimits = FONT_SIZE_LIMITS[slideSpec.layoutType] || {};
+      
+      for (const shape of shapes.items) {
+        try {
+          const shapeName = (shape.name || '').toLowerCase();
+          
+          // Determine which placeholder this shape represents
+          let placeholderType = null;
+          if (shapeName.includes('title')) {
+            placeholderType = 'title';
+          } else if (shapeName.includes('subtitle')) {
+            placeholderType = 'subtitle';
+          } else if (shapeName.includes('content') || shapeName.includes('body')) {
+            placeholderType = 'content';
+          } else if (shapeName.includes('left') || shapeName.includes('column 1')) {
+            placeholderType = 'leftColumn';
+          } else if (shapeName.includes('right') || shapeName.includes('column 2')) {
+            placeholderType = 'rightColumn';
+          }
+          
+          if (placeholderType && fontLimits[placeholderType]) {
+            const { min, max } = fontLimits[placeholderType];
+            const currentSize = shape.textFrame.textRange.font.size;
+            
+            if (currentSize < min) {
+              shape.textFrame.textRange.font.size = min;
+              console.log(`Increased font size for ${shape.name} to ${min}pt`);
+            } else if (currentSize > max) {
+              shape.textFrame.textRange.font.size = max;
+              console.log(`Decreased font size for ${shape.name} to ${max}pt`);
+            }
+          }
+        } catch (error) {
+          console.warn(`Could not enforce font size for shape:`, error);
+        }
+      }
+      
+      // Single sync after all updates on this slide
+      await context.sync();
     }
-    
-    await context.sync();
     
     if (violations.length > 0) {
       console.warn('Overflow violations detected and corrected:', violations);
@@ -109,104 +201,6 @@ export async function enforceOverflowRules(slidePlan) {
     
     console.log('Overflow rules enforced');
   });
-}
-
-/**
- * Update shape text by placeholder key
- */
-async function updateShapeText(shapes, placeholderKey, text, layoutType, context) {
-  const mappings = PLACEHOLDER_MAPPINGS;
-  
-  const possibleNames = (mappings[layoutType] || {})[placeholderKey] || [placeholderKey];
-  
-  // Load all shape properties at once
-  shapes.items.forEach(shape => {
-    shape.load(['name', 'textFrame']);
-  });
-  await context.sync();
-  
-  for (const shape of shapes.items) {
-    const shapeName = shape.name || '';
-    const isMatch = possibleNames.some(name => 
-      shapeName.toLowerCase().includes(name.toLowerCase())
-    );
-    
-    if (isMatch) {
-      try {
-        const textFrame = shape.textFrame;
-        textFrame.load('textRange');
-        await context.sync();
-        
-        textFrame.textRange.text = text;
-        await context.sync();
-        break;
-      } catch (error) {
-        console.warn(`Could not update shape ${shapeName}:`, error);
-      }
-    }
-  }
-}
-
-/**
- * Enforce font size limits
- */
-async function enforceFontSizes(shapes, layoutType, context) {
-  const fontLimits = FONT_SIZE_LIMITS[layoutType] || {};
-  
-  // Load all shape properties at once for better performance
-  shapes.items.forEach(shape => {
-    shape.load(['name', 'textFrame']);
-  });
-  await context.sync();
-  
-  for (const shape of shapes.items) {
-    try {
-      const textFrame = shape.textFrame;
-      textFrame.load('textRange');
-      await context.sync();
-      
-      const textRange = textFrame.textRange;
-      textRange.load('font');
-      await context.sync();
-      
-      const font = textRange.font;
-      font.load('size');
-      await context.sync();
-      
-      // Determine which placeholder this shape represents
-      let placeholderType = null;
-      const shapeName = (shape.name || '').toLowerCase();
-      
-      if (shapeName.includes('title')) {
-        placeholderType = 'title';
-      } else if (shapeName.includes('subtitle')) {
-        placeholderType = 'subtitle';
-      } else if (shapeName.includes('content') || shapeName.includes('body')) {
-        placeholderType = 'content';
-      } else if (shapeName.includes('left') || shapeName.includes('column 1')) {
-        placeholderType = 'leftColumn';
-      } else if (shapeName.includes('right') || shapeName.includes('column 2')) {
-        placeholderType = 'rightColumn';
-      }
-      
-      if (placeholderType && fontLimits[placeholderType]) {
-        const { min, max } = fontLimits[placeholderType];
-        const currentSize = font.size;
-        
-        if (currentSize < min) {
-          font.size = min;
-          console.log(`Increased font size for ${shape.name} to ${min}pt`);
-        } else if (currentSize > max) {
-          font.size = max;
-          console.log(`Decreased font size for ${shape.name} to ${max}pt`);
-        }
-        
-        await context.sync();
-      }
-    } catch (error) {
-      console.warn(`Could not enforce font size for shape:`, error);
-    }
-  }
 }
 
 /**
@@ -222,6 +216,14 @@ export function validateSlidePlan(slidePlan) {
     return errors;
   }
   
+  // Define expected placeholder keys for each layout type
+  const expectedPlaceholders = {
+    'title': ['title', 'subtitle'],
+    'content': ['title', 'content'],
+    'two-column': ['title', 'leftColumn', 'rightColumn'],
+    'section': ['title']
+  };
+  
   slidePlan.slides.forEach((slide, index) => {
     if (!slide.layoutType) {
       errors.push(`Slide ${index + 1}: Missing layoutType`);
@@ -231,6 +233,16 @@ export function validateSlidePlan(slidePlan) {
     
     if (!slide.placeholders || typeof slide.placeholders !== 'object') {
       errors.push(`Slide ${index + 1}: Missing or invalid placeholders`);
+    } else if (slide.layoutType && expectedPlaceholders[slide.layoutType]) {
+      // Validate that placeholder keys match the layout type
+      const expected = expectedPlaceholders[slide.layoutType];
+      const actualKeys = Object.keys(slide.placeholders);
+      
+      // Check for unexpected placeholders
+      const unexpected = actualKeys.filter(key => !expected.includes(key));
+      if (unexpected.length > 0) {
+        errors.push(`Slide ${index + 1}: Unexpected placeholder(s) '${unexpected.join(', ')}' for layout type '${slide.layoutType}'`);
+      }
     }
   });
   

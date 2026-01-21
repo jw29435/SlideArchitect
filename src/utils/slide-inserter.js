@@ -18,8 +18,9 @@ export async function insertSlidesFromLibrary(slidePlan) {
       const slideSpec = slidePlan.slides[i];
       const layoutType = slideSpec.layoutType;
       
-      // For now, we'll create slides with built-in layouts
-      // In a real implementation, you would load base64 from slide library
+      // TODO: Implement base64 slide loading from library to preserve exact template formatting
+      // Current implementation uses built-in PowerPoint layouts which don't preserve custom templates
+      // Future: Load base64-encoded slides from LAYOUT_LIBRARY and insert with formatting preserved
       let slide;
       
       // Insert slide with appropriate layout
@@ -84,10 +85,21 @@ export async function fillPlaceholders(slidePlan) {
       
       await context.sync();
       
+      // Load all textRanges upfront to minimize sync calls
+      shapes.items.forEach(shape => {
+        try {
+          shape.textFrame.load('textRange');
+        } catch (error) {
+          // Shape might not have a text frame
+        }
+      });
+      
+      await context.sync();
+      
       // Get placeholder mappings for this layout type
       const mappings = PLACEHOLDER_MAPPINGS[slideSpec.layoutType] || {};
       
-      // Fill each placeholder
+      // Fill each placeholder (text assignment only, no sync yet)
       for (const [placeholderKey, content] of Object.entries(slideSpec.placeholders)) {
         if (!content) continue;
         
@@ -103,14 +115,8 @@ export async function fillPlaceholders(slidePlan) {
           
           if (isMatch) {
             try {
-              const textFrame = shape.textFrame;
-              textFrame.load('textRange');
-              await context.sync();
-              
-              // Set the text content
-              textFrame.textRange.text = content;
-              await context.sync();
-              
+              // Set the text content (no sync needed yet)
+              shape.textFrame.textRange.text = content;
               console.log(`Filled placeholder '${placeholderKey}' in slide ${i + 1}`);
               break; // Move to next placeholder
             } catch (error) {
@@ -119,29 +125,18 @@ export async function fillPlaceholders(slidePlan) {
           }
         }
       }
+      
+      // Single sync after all placeholders on this slide are set
+      await context.sync();
     }
     
     console.log('All placeholders filled');
   });
 }
 
-/**
- * Load slide from library as base64 (preserves formatting)
- * This is a placeholder for actual implementation
- * In production, you would:
- * 1. Store pre-formatted PPTX slides as base64
- * 2. Use PowerPoint.createPresentation() with base64
- * 3. Copy slides from the created presentation
- */
-async function loadSlideFromLibraryBase64(layoutType) {
-  // Mock implementation
-  // In real scenario, fetch base64 from server or embed it
-  const libraryPath = LAYOUT_LIBRARY[layoutType];
-  
-  if (!libraryPath) {
-    throw new Error(`Unknown layout type: ${layoutType}`);
-  }
-  
-  // Placeholder: would fetch actual base64 encoded slide
-  return null;
-}
+// TODO: Implement base64 slide loading
+// Future implementation would:
+// 1. Store pre-formatted PPTX slides as base64 in slide library
+// 2. Use PowerPoint.createPresentation() with base64 to load templates
+// 3. Copy slides from the created presentation to preserve exact formatting
+// Current implementation uses built-in PowerPoint layouts instead.

@@ -55,7 +55,7 @@ Rules:
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-4-0613',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Convert this text to a slide plan:\n\n${text}` }
@@ -66,7 +66,26 @@ Rules:
     });
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`);
+      const statusCode = response.status;
+      let errorMessage;
+      
+      switch (statusCode) {
+        case 401:
+          errorMessage = 'Invalid API key. Please check your OpenAI API key.';
+          break;
+        case 429:
+          errorMessage = 'Rate limit exceeded. Please try again in a few moments.';
+          break;
+        case 500:
+        case 502:
+        case 503:
+          errorMessage = 'OpenAI service is temporarily unavailable. Please try again later.';
+          break;
+        default:
+          errorMessage = `OpenAI API error (${statusCode}): ${response.statusText}`;
+      }
+      
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
@@ -76,9 +95,19 @@ Rules:
     const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/\{[\s\S]*\}/);
     const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : content;
     
-    return JSON.parse(jsonStr);
+    const slidePlan = JSON.parse(jsonStr);
+    
+    // Validate the parsed slide plan structure
+    if (!slidePlan || !slidePlan.slides || !Array.isArray(slidePlan.slides)) {
+      throw new Error('Invalid slide plan structure returned from OpenAI');
+    }
+    
+    return slidePlan;
   } catch (error) {
     console.error('OpenAI API error:', error);
+    if (error.message.includes('API key') || error.message.includes('Rate limit') || error.message.includes('unavailable')) {
+      throw error; // Re-throw user-friendly errors
+    }
     throw new Error(`Failed to generate slide plan with OpenAI: ${error.message}`);
   }
 }
@@ -148,7 +177,7 @@ function generateMockSlidePlan(text) {
           layoutType: 'content',
           placeholders: {
             title: title,
-            content: content || 'Content coming soon...'
+            content: content || ''
           }
         });
       }

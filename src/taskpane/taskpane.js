@@ -20,6 +20,12 @@ async function generateSlides() {
     return;
   }
   
+  // Basic API key format validation (for OpenAI-style keys) to catch common typos
+  if (apiKey && !apiKey.startsWith('sk-')) {
+    showStatus('Invalid API key format. OpenAI API keys should start with "sk-".', 'error');
+    return;
+  }
+  
   const generateBtn = document.getElementById('generateBtn');
   generateBtn.disabled = true;
   
