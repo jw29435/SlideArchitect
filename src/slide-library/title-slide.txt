@@ -1,0 +1,3 @@
+# Base64 encoded title slide would go here
+# This is a placeholder file
+# In production, this would contain the actual base64-encoded slide from your template PPTX
